@@ -12,28 +12,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. سحب الكود من المستودع
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      # 2. إعداد بيئة Java 17 (ضروري جداً لتفادي تعارض الإصدارات)
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. إعداد أداة Gradle تلقائياً بنفس الإصدار المتوافق
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: '8.1.1'
 
-      # 4. إعطاء صلاحيات التشغيل لملف gradlew (إذا كان موجوداً)
       - name: Make gradlew executable
         run: chmod +x gradlew || true
 
-      # 5. تجميع ملف الـ APK الـ Debug
       - name: Build Debug APK
         run: |
           if [ -f "./gradlew" ]; then
@@ -42,7 +37,6 @@ jobs:
             gradle assembleDebug --stacktrace
           fi
 
-      # 6. رفع ملف الـ APK الناتج لتقوم بتحميله
       - name: Upload Debug APK
         uses: actions/upload-artifact@v3
         with:
