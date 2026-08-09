@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. سحب الملفات من مستودع GitHub
+      # 1. سحب الكود من المستودع
       - name: Checkout Code
         uses: actions/checkout@v3
 
@@ -23,27 +23,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. إعداد أداة Gradle الإصدار المتوافق
+      # 3. إعداد أداة Gradle
       - name: Setup Gradle
         uses: gradle/gradle-build-action@v2
         with:
           gradle-version: '8.1.1'
 
-      # 4. فك ضغط ملف QuranApp.zip إلى المسار الحالي
-      - name: Unzip Project Files
+      # 4. فك ضغط ملف QuranApp.zip إلى المسار الرئيسي
+      - name: Unzip Project
         run: |
           unzip -o QuranApp.zip
           cp -r QuranApp/* . || true
 
-      # 5. إعطاء صلاحيات التشغيل لملف gradlew (إن وجد)
+      # 5. إعطاء صلاحية التشغيل للـ gradlew
       - name: Make gradlew executable
         run: chmod +x gradlew || true
 
-      # 6. تجميع ملف الـ APK
+      # 6. تجميع التطبيق
       - name: Build Debug APK
         run: gradle assembleDebug --stacktrace
 
-      # 7. رفع ملف الـ APK الناتج لتحميله
+      # 7. رفع ملف الـ APK جاهزاً للتحميل
       - name: Upload Debug APK
         uses: actions/upload-artifact@v3
         with:
