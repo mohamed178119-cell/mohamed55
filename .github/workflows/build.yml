@@ -27,12 +27,21 @@ jobs:
             unzip -q "$ZIP_FILE" -d extracted_project
           fi
 
+      - name: Create Debug Keystore
+        run: |
+          # إنشاء مفتاح توقيع مؤقت لتجاوز خطأ التوقيع
+          BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
+          if [ -n "$BUILD_FILE" ]; then
+            PROJECT_DIR=$(dirname "$BUILD_FILE")
+            mkdir -p "$PROJECT_DIR"
+            keytool -genkey -v -keystore "$PROJECT_DIR/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
         run: |
-          # البحث عن مجلد المشروع الذي يحتوي على build.gradle
           BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
           if [ -z "$BUILD_FILE" ]; then
             echo "Error: Could not find build.gradle file!"
@@ -43,7 +52,6 @@ jobs:
           echo "Navigating to project directory: $PROJECT_DIR"
           cd "$PROJECT_DIR"
           
-          # إعطاء صلاحية التشغيل واستخدام gradle المثبت في النظام مباشرة لتجنب مشاكل gradlew
           gradle assembleDebug --stacktrace
 
       - name: Upload APK
