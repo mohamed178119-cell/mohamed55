@@ -1,0 +1,54 @@
+name: Build Masa APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Unzip project (if uploaded as masa-app.zip)
+        run: |
+          if [ -f "masa-app.zip" ]; then
+            unzip -o masa-app.zip -d .
+          fi
+          find . -maxdepth 3 -not -path "./.git*"
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -genkey -v \
+            -keystore ~/.android/debug.keystore \
+            -storepass android -alias androiddebugkey \
+            -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.7
+
+      - name: Build debug APK
+        working-directory: masa-app
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Locate APK
+        run: find . -name "*.apk"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: masa-debug-apk
+          path: masa-app/app/build/outputs/apk/debug/*.apk
