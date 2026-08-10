@@ -13,42 +13,38 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Unzip Project Files
-        run: |
-          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
-          if [ -n "$ZIP_FILE" ]; then
-            echo "Unzipping $ZIP_FILE..."
-            unzip -q "$ZIP_FILE" -d extracted_project
-          else
-            echo "No zip file found."
-          fi
-
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Unzip Project Files
+        run: |
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Unzipping $ZIP_FILE..."
+            unzip -q "$ZIP_FILE" -d extracted_project
+          fi
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Build Debug APK
         run: |
-          # Find gradlew inside the repository or extracted folder
-          GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
-          if [ -n "$GRADLEW_PATH" ]; then
-            PROJECT_DIR=$(dirname "$GRADLEW_PATH")
-            cd "$PROJECT_DIR"
-            chmod +x gradlew
-            ./gradlew assembleDebug --stacktrace
-          else
-            echo "Gradlew not found, attempting to build with system gradle"
-            BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
-            if [ -n "$BUILD_FILE" ]; then
-              cd $(dirname "$BUILD_FILE")
-              gradle assembleDebug
-            else
-              echo "Error: Could not find build files!"
-              exit 1
-            fi
+          # البحث عن مجلد المشروع الذي يحتوي على build.gradle
+          BUILD_FILE=$(find . -name "build.gradle*" | head -n 1)
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Error: Could not find build.gradle file!"
+            exit 1
           fi
+          
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "Navigating to project directory: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+          
+          # إعطاء صلاحية التشغيل واستخدام gradle المثبت في النظام مباشرة لتجنب مشاكل gradlew
+          gradle assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
