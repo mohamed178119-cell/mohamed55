@@ -1,40 +1,66 @@
-export default {
-  async fetch(request, env) {
-    if (request.method !== "POST") {
-      return new Response("Method not allowed", { status: 405 });
-    }
+name: Build Android APK
 
-    try {
-      const model = "gemini-3.5-flash";
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${env.GEMINI_API_KEY}`;
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
 
-      const body = await request.text();
+jobs:
+  build:
+    runs-on: ubuntu-latest
 
-      const geminiResponse = await fetch(geminiUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: body,
-      });
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      const responseText = await geminiResponse.text();
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
 
-      return new Response(responseText, {
-        status: geminiResponse.status,
-        headers: { "Content-Type": "application/json" },
-      });
-    } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), { status: 500 });
-    }
-  },
-};      - name: Generate debug keystore
-        working-directory: ${{ steps.locate.outputs.project_dir }}
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
         run: |
-          keytool -genkey -v \
-            -keystore debug.keystore \
-            -storepass android -alias androiddebugkey \
-            -keypass android -keyalg RSA -keysize 2048 -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -f "./gradlew" ]; then
+            chmod +x gradlew
+          else
+            BUILD_FILE=$(find . -maxdepth 3 -name "build.gradle.kts" -o -name "build.gradle" | head -n 1)
+            if [ -n "$BUILD_FILE" ]; project_dir=$(dirname "$BUILD_FILE"); then
+              echo "Found project in $project_dir"
+              if [ -f "$project_dir/gradlew" ]; then
+                chmod +x "$project_dir/gradlew"
+              fi
+            fi
+          fi
 
+      - name: Build Debug APK
+        run: |
+          BUILD_FILE=$(find . -maxdepth 3 -name "build.gradle.kts" -o -name "build.gradle" | head -n 1)
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Error: Could not find build.gradle or build.gradle.kts in repository!"
+            exit 1
+          fi
+          
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "Building in directory: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+
+          if [ -f "./gradlew" ]; then
+            ./gradlew assembleDebug --stacktrace
+          else
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masa-App-Debug-APK
+          path: "**/build/outputs/apk/debug/*.apk"
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
