@@ -37,21 +37,14 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
 
       - name: Generate default debug keystore
         run: |
-          KEYSTORE_DIR="$HOME/.android"
-          mkdir -p "$KEYSTORE_DIR"
-          if [ ! -f "$KEYSTORE_DIR/debug.keystore" ]; then
-            keytool -genkey -v -keystore "$KEYSTORE_DIR/debug.keystore" \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
-              -dname "CN=Android Debug,O=Android,C=US"
-          fi
-          # Also place a copy inside the project in case the build looks there
-          find . -maxdepth 4 \( -name "build.gradle.kts" -o -name "build.gradle" \) ! -path "*/app/*" -exec dirname {} \; | while read d; do
-            cp "$KEYSTORE_DIR/debug.keystore" "$d/debug.keystore" 2>/dev/null || true
-          done
+          mkdir -p "$HOME/.android"
+          if [ ! -f "$HOME/.android/debug.keystore" ]; then keytool -genkey -v -keystore "$HOME/.android/debug.keystore" -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"; fi
+          for d in $(find . -maxdepth 4 \( -name "build.gradle.kts" -o -name "build.gradle" \) ! -path "*/app/*" -exec dirname {} \;); do cp "$HOME/.android/debug.keystore" "$d/debug.keystore"; done
 
       - name: Locate project and build Debug APK
         run: |
@@ -68,15 +61,7 @@ jobs:
           echo "Building in directory: $PROJECT_DIR"
           cd "$PROJECT_DIR"
 
-          # Prefer the wrapper only if the actual wrapper jar exists,
-          # otherwise fall back to the Gradle installed by setup-gradle.
-          if [ -f "./gradlew" ] && [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug --stacktrace
-          else
-            echo "gradle-wrapper.jar missing or gradlew not found — using system Gradle instead."
-            gradle assembleDebug --stacktrace
-          fi
+          if [ -f "./gradlew" ] && [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then chmod +x gradlew; ./gradlew assembleDebug --stacktrace; else echo "Using system Gradle instead of wrapper."; gradle assembleDebug --stacktrace; fi
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
