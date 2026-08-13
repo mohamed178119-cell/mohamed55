@@ -53,10 +53,13 @@ jobs:
           echo "Building in directory: $PROJECT_DIR"
           cd "$PROJECT_DIR"
 
-          if [ -f "./gradlew" ]; then
+          # Prefer the wrapper only if the actual wrapper jar exists,
+          # otherwise fall back to the Gradle installed by setup-gradle.
+          if [ -f "./gradlew" ] && [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
             chmod +x gradlew
             ./gradlew assembleDebug --stacktrace
           else
+            echo "gradle-wrapper.jar missing or gradlew not found — using system Gradle instead."
             gradle assembleDebug --stacktrace
           fi
 
