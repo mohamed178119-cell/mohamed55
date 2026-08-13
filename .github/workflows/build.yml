@@ -43,4 +43,43 @@ jobs:
           KEYSTORE_DIR="$HOME/.android"
           mkdir -p "$KEYSTORE_DIR"
           if [ ! -f "$KEYSTORE_DIR/debug.keystore" ]; then
-            keytool -genkey -v -keystore "$KEYSTORE_DIR/debug.keystore"
+            keytool -genkey -v -keystore "$KEYSTORE_DIR/debug.keystore" \
+              -storepass android -alias androiddebugkey -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          # Also place a copy inside the project in case the build looks there
+          find . -maxdepth 4 \( -name "build.gradle.kts" -o -name "build.gradle" \) ! -path "*/app/*" -exec dirname {} \; | while read d; do
+            cp "$KEYSTORE_DIR/debug.keystore" "$d/debug.keystore" 2>/dev/null || true
+          done
+
+      - name: Locate project and build Debug APK
+        run: |
+          BUILD_FILE=$(find . -maxdepth 4 \( -name "build.gradle.kts" -o -name "build.gradle" \) ! -path "*/app/*" | head -n 1)
+
+          if [ -z "$BUILD_FILE" ]; then
+            echo "Error: Could not find build.gradle or build.gradle.kts in repository (even after extraction)!"
+            echo "Repository contents:"
+            find . -maxdepth 4
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$BUILD_FILE")
+          echo "Building in directory: $PROJECT_DIR"
+          cd "$PROJECT_DIR"
+
+          # Prefer the wrapper only if the actual wrapper jar exists,
+          # otherwise fall back to the Gradle installed by setup-gradle.
+          if [ -f "./gradlew" ] && [ -f "./gradle/wrapper/gradle-wrapper.jar" ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug --stacktrace
+          else
+            echo "gradle-wrapper.jar missing or gradlew not found — using system Gradle instead."
+            gradle assembleDebug --stacktrace
+          fi
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masa-App-Debug-APK
+          path: "**/build/outputs/apk/debug/*.apk"
