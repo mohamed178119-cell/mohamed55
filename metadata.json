@@ -1,0 +1,6 @@
+{
+  "name": "ماسا",
+  "description": "تطبيق ماسا - المساعد الدراسي الذكي للإجابة على الأسئلة وتلخيص الكتب والمستندات وتسجيل الحصص",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
