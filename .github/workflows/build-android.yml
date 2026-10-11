@@ -1,22 +1,18 @@
-name: Build Android APK
-
-on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
       - name: Unzip project if uploaded as zip
         run: |
-          find . -maxdepth 1 -name "*.zip" -print0 | while IFS= read -r -d '' z; do
-            echo "Unzipping: $z"
-            unzip -oq "$z"
+          echo "=== Files in repo ==="
+          ls -la
+          shopt -s nullglob
+          zips=(*.zip)
+          if [ ${#zips[@]} -eq 0 ]; then
+            echo "No zip file found in repo root"
+          fi
+          for z in "${zips[@]}"; do
+            echo "=== Content of: $z ==="
+            unzip -l "$z" | head -n 15
+            unzip -o "$z" || { echo "UNZIP FAILED for: $z"; exit 1; }
           done
+          echo "=== After unzip ==="
           ls -la
 
       - name: Find project folder
