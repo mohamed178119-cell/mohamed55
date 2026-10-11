@@ -11,69 +11,96 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unzip project if uploaded as zip
+      - name: Prepare project or APK
         run: |
+          set -e
           echo "=== Files in repo ==="
           ls -la
+
           shopt -s nullglob
-          zips=(*.zip)
-          if [ ${#zips[@]} -eq 0 ]; then
+          zips=(./*.zip)
+          if [ ${#zips[@]} -gt 0 ]; then
+            for z in "${zips[@]}"; do
+              echo "=== Extracting: $z ==="
+              unzip -o -q "$z" || { echo "UNZIP FAILED for: $z"; exit 1; }
+            done
+          else
             echo "No zip file found in repo root"
           fi
-          for z in "${zips[@]}"; do
-            echo "=== Content of: $z ==="
-            unzip -l "$z" | head -n 15
-            unzip -o "$z" || { echo "UNZIP FAILED for: $z"; exit 1; }
-          done
-          echo "=== After unzip ==="
+
+          echo "=== After extraction ==="
           ls -la
 
-      - name: Find project folder
-        run: |
           CFG=$(find . -name capacitor.config.json -not -path "*/node_modules/*" | head -n 1)
-          if [ -z "$CFG" ]; then
-            echo "capacitor.config.json not found."
-            ls -R
-            exit 1
+          if [ -n "$CFG" ]; then
+            DIR=$(dirname "$CFG")
+            echo "Project folder: $DIR"
+            echo "PROJECT_DIR=$DIR" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=false" >> "$GITHUB_ENV"
+            exit 0
           fi
-          DIR=$(dirname "$CFG")
-          echo "Project folder: $DIR"
-          echo "PROJECT_DIR=$DIR" >> $GITHUB_ENV
+
+          if [ -f ./app-debug.apk ]; then
+            echo "No Capacitor project found, but app-debug.apk already exists. Uploading the APK directly."
+            echo "APK_PATH=./app-debug.apk" >> "$GITHUB_ENV"
+            echo "SKIP_BUILD=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          echo "No Capacitor project and no app-debug.apk found."
+          echo "Expected a ZIP containing a project with capacitor.config.json or a prebuilt APK."
+          find . -maxdepth 3 -type f | sed 's#^\./##' | head -n 200
+          exit 1
 
       - uses: actions/setup-node@v4
+        if: env.SKIP_BUILD != 'true'
         with:
           node-version: 20
 
       - uses: actions/setup-java@v4
+        if: env.SKIP_BUILD != 'true'
         with:
           distribution: temurin
           java-version: 21
 
       - name: Install dependencies
+        if: env.SKIP_BUILD != 'true'
         working-directory: ${{ env.PROJECT_DIR }}
         run: npm install
 
       - name: Add Android platform
+        if: env.SKIP_BUILD != 'true'
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap add android
 
       - name: Apply app icon
+        if: env.SKIP_BUILD != 'true'
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           cp -r android-res/. android/app/src/main/res/
           ls android/app/src/main/res/mipmap-xxxhdpi
 
       - name: Sync web assets
+        if: env.SKIP_BUILD != 'true'
         working-directory: ${{ env.PROJECT_DIR }}
         run: npx cap sync android
 
       - name: Build debug APK
+        if: env.SKIP_BUILD != 'true'
         working-directory: ${{ env.PROJECT_DIR }}/android
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Upload existing APK
+        if: env.SKIP_BUILD == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: whiteboard-studio-apk
+          path: ${{ env.APK_PATH }}
+
+      - name: Upload built APK
+        if: env.SKIP_BUILD != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: whiteboard-studio-apk
