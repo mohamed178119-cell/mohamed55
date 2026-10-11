@@ -13,9 +13,11 @@ jobs:
 
       - name: Unzip project if uploaded as zip
         run: |
-          for z in *.zip; do
-            [ -f "$z" ] && unzip -oq "$z"
+          find . -maxdepth 1 -name "*.zip" -print0 | while IFS= read -r -d '' z; do
+            echo "Unzipping: $z"
+            unzip -oq "$z"
           done
+          ls -la
 
       - name: Find project folder
         run: |
