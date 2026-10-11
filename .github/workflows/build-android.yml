@@ -11,11 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Unzip project if uploaded as zip
+        run: |
+          for z in *.zip; do
+            [ -f "$z" ] && unzip -oq "$z"
+          done
+          ls -R | head -n 40
+
       - name: Find project folder
         run: |
           CFG=$(find . -name capacitor.config.json -not -path "*/node_modules/*" | head -n 1)
           if [ -z "$CFG" ]; then
-            echo "capacitor.config.json not found. Upload the project files to the repo."
+            echo "capacitor.config.json not found."
             ls -R
             exit 1
           fi
