@@ -1,8 +1,8 @@
-name: Build Android APK
+name: Build APK from ZIP
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
@@ -11,34 +11,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unzip project if uploaded as zip
+      - name: Unzip project
         run: |
-          echo "=== Files in repo ==="
-          ls -la
-          shopt -s nullglob
-          zips=(*.zip)
-          if [ ${#zips[@]} -eq 0 ]; then
-            echo "No zip file found in repo root"
-          fi
-          for z in "${zips[@]}"; do
-            echo "=== Content of: $z ==="
-            unzip -l "$z" | head -n 15
-            unzip -o "$z" || { echo "UNZIP FAILED for: $z"; exit 1; }
-          done
-          echo "=== After unzip ==="
-          ls -la
-
-      - name: Find project folder
-        run: |
-          CFG=$(find . -name capacitor.config.json -not -path "*/node_modules/*" | head -n 1)
-          if [ -z "$CFG" ]; then
-            echo "capacitor.config.json not found."
-            ls -R
-            exit 1
-          fi
-          DIR=$(dirname "$CFG")
-          echo "Project folder: $DIR"
-          echo "PROJECT_DIR=$DIR" >> $GITHUB_ENV
+          ZIP=$(ls ./*.zip 2>/dev/null | head -n 1)
+          if [ -z "$ZIP" ]; then echo "No .zip file found in the repo root"; exit 1; fi
+          echo "Using $ZIP"
+          mkdir -p project
+          unzip -o "$ZIP" -d project
+          PKG=$(find project -name package.json -not -path '*/node_modules/*' | head -n 1)
+          if [ -z "$PKG" ]; then echo "package.json not found inside the zip"; exit 1; fi
+          echo "APP_DIR=$(dirname "$PKG")" >> "$GITHUB_ENV"
 
       - uses: actions/setup-node@v4
         with:
@@ -47,41 +29,26 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
       - name: Install dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.APP_DIR }}
         run: npm install
 
       - name: Add Android platform
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: ${{ env.APP_DIR }}
         run: npx cap add android
 
-      - name: Apply app icon
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          cp -r android-res/. android/app/src/main/res/
-          ls android/app/src/main/res/mipmap-xxxhdpi
-
-      - name: Allow saving videos (storage permissions)
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          M=android/app/src/main/AndroidManifest.xml
-          sed -i 's#<application#<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />\n    <application android:requestLegacyExternalStorage="true"#' "$M"
-          grep -n "STORAGE\|requestLegacy" "$M"
-
-      - name: Sync web assets
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Sync web files
+        working-directory: ${{ env.APP_DIR }}
         run: npx cap sync android
 
       - name: Build debug APK
-        working-directory: ${{ env.PROJECT_DIR }}/android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+        working-directory: ${{ env.APP_DIR }}/android
+        run: ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: whiteboard-studio-apk
-          path: ${{ env.PROJECT_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
+          name: chem-lab-apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
