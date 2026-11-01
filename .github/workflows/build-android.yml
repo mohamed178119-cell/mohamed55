@@ -12,10 +12,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract project zip if present
+      - name: Extract project zip
         run: |
-          if [ -f daris-github.zip ]; then
-            unzip -o -q daris-github.zip
+          ZIP=$(find . -name "*.zip" -not -path "./.git/*" | head -n 1)
+          if [ -n "$ZIP" ]; then
+            echo "Extracting $ZIP"
+            unzip -o -q "$ZIP"
+          fi
+          if [ ! -f package.json ]; then
+            echo "ERROR: package.json not found. Upload daris-github.zip to the repo root (not inside a folder)."
+            ls -la
+            exit 1
           fi
 
       - name: Set up Node 20
