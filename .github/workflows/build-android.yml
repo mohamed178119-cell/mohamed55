@@ -12,6 +12,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Extract project zip if present
+        run: |
+          if [ -f daris-github.zip ]; then
+            unzip -o -q daris-github.zip
+          fi
+
       - name: Set up Node 20
         uses: actions/setup-node@v4
         with:
