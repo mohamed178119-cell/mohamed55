@@ -24,7 +24,7 @@ jobs:
           node-version: '20'
 
       - name: Install web deps
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Write Gemini key for build
         env:
