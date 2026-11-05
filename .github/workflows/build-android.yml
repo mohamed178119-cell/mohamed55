@@ -18,6 +18,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Extract project from zip
+        run: |
+          unzip -o wizard-chess-3d.zip -d .
+          test -f package.json || (echo "package.json not found after extraction" && exit 1)
+          ls -la
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
