@@ -28,19 +28,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: Setup Java 21
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
       - name: Install project dependencies
         run: npm install
 
-      - name: Install Capacitor
+      - name: Install Capacitor 6
         run: |
-          npm install @capacitor/core @capacitor/android
-          npm install -D @capacitor/cli
+          npm install @capacitor/core@6 @capacitor/android@6
+          npm install -D @capacitor/cli@6
 
       - name: Create Capacitor config
         run: |
@@ -59,16 +59,6 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
-
-      - name: Fix duplicate Kotlin libraries
-        run: |
-          cat >> android/app/build.gradle << 'EOF'
-
-          configurations.all {
-              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
-              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
-          }
-          EOF
 
       - name: Build debug APK
         working-directory: android
