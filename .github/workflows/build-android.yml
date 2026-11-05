@@ -22,18 +22,17 @@ jobs:
         run: |
           unzip -o wizard-chess-3d.zip -d .
           test -f package.json || (echo "package.json not found after extraction" && exit 1)
-          ls -la
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Setup Java 21
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: 17
 
       - name: Install project dependencies
         run: npm install
@@ -60,6 +59,16 @@ jobs:
         run: |
           npx cap add android
           npx cap sync android
+
+      - name: Fix duplicate Kotlin libraries
+        run: |
+          cat >> android/app/build.gradle << 'EOF'
+
+          configurations.all {
+              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
+              exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk8'
+          }
+          EOF
 
       - name: Build debug APK
         working-directory: android
