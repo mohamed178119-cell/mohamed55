@@ -1,4 +1,4 @@
-name: Build Android APK
+name: Build APK
 
 on:
   push:
@@ -6,65 +6,61 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-apk:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Extract project zip
-        run: |
-          ZIP=$(find . -name "*.zip" -not -path "./.git/*" | head -n 1)
-          if [ -n "$ZIP" ]; then
-            echo "Extracting $ZIP"
-            unzip -o -q "$ZIP"
-          fi
-          if [ ! -f package.json ]; then
-            echo "ERROR: package.json not found. Upload daris-github.zip to the repo root (not inside a folder)."
-            ls -la
-            exit 1
-          fi
-
-      - name: Set up Node 20
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      - name: Install web deps
-        run: npm install --legacy-peer-deps
-
-      - name: Write Gemini key for build
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: echo "VITE_GEMINI_API_KEY=$GEMINI_API_KEY" > .env.local
-
-      - name: Build web app
-        run: npm run build
-
-      - name: Copy web build into APK assets
-        run: |
-          rm -rf android/app/src/main/assets/www
-          mkdir -p android/app/src/main/assets
-          cp -r dist android/app/src/main/assets/www
-
-      - name: Set up JDK 17
+      - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: 17
 
-      - name: Set up Gradle 8.5
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.5'
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
+      - name: Install project dependencies
+        run: npm install
+
+      - name: Install Capacitor
+        run: |
+          npm install @capacitor/core @capacitor/android
+          npm install -D @capacitor/cli
+
+      - name: Create Capacitor config
+        run: |
+          cat > capacitor.config.json << 'EOF'
+          {
+            "appId": "com.wizardchess.app",
+            "appName": "Wizard Chess",
+            "webDir": "dist"
+          }
+          EOF
+
+      - name: Build web app
+        run: npm run build -- --base=./
+
+      - name: Add and sync Android project
+        run: |
+          npx cap add android
+          npx cap sync android
+
+      - name: Build APK
         working-directory: android
-        run: gradle :app:assembleDebug --no-daemon
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: daris-app-debug
+          name: wizard-chess-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
