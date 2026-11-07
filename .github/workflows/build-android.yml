@@ -35,12 +35,12 @@ jobs:
           java-version: 17
 
       - name: Install project dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Install Capacitor 6
         run: |
-          npm install @capacitor/core@6 @capacitor/android@6
-          npm install -D @capacitor/cli@6
+          npm install --legacy-peer-deps @capacitor/core@6 @capacitor/android@6
+          npm install --legacy-peer-deps -D @capacitor/cli@6
 
       - name: Create Capacitor config
         run: |
