@@ -1,4 +1,4 @@
-name: Build Wizard Chess APK
+name: Build Wizard Chess APKs
 
 on:
   push:
@@ -9,19 +9,42 @@ permissions:
   contents: read
 
 jobs:
-  build-apk:
-    name: Build Android APK
+  build-apks:
+    name: Build exactly three Android APKs
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract project from zip
+      - name: Extract project ZIP
+        id: extract
+        shell: bash
         run: |
-          unzip -o wizard-chess-3d.zip -d .
-          test -f package.json || (echo "package.json not found after extraction" && exit 1)
+          set -euo pipefail
+
+          ZIP_FILE="wizard-chess-apk.zip"
+          if [[ ! -f "$ZIP_FILE" ]]; then
+            echo "ZIP file not found: $ZIP_FILE"
+            echo "Files in repo root:"
+            ls -la *.zip 2>/dev/null || true
+            exit 1
+          fi
+
+          EXTRACT_DIR="$RUNNER_TEMP/wizard-chess-source"
+          mkdir -p "$EXTRACT_DIR"
+          unzip -o "$ZIP_FILE" -d "$EXTRACT_DIR"
+
+          PACKAGE_JSON="$(find "$EXTRACT_DIR" -type f -name package.json -not -path '*/node_modules/*' -print -quit)"
+          if [[ -z "$PACKAGE_JSON" ]]; then
+            echo "package.json was not found inside $ZIP_FILE"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PACKAGE_JSON")"
+          echo "project_dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Using extracted project at: $PROJECT_DIR"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -35,41 +58,118 @@ jobs:
           java-version: 17
 
       - name: Install project dependencies
-        run: npm install
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        run: |
+          if [[ -f package-lock.json ]]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Install Capacitor 6
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
           npm install @capacitor/core@6 @capacitor/android@6
-          npm install -D @capacitor/cli@6
+          npm install --save-dev @capacitor/cli@6
 
-      - name: Create Capacitor config
+      - name: Create Capacitor config if missing
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
-          cat > capacitor.config.json << 'EOF'
+          if [[ ! -f capacitor.config.json && ! -f capacitor.config.ts && ! -f capacitor.config.js ]]; then
+            cat > capacitor.config.json <<'EOF'
           {
             "appId": "com.wizardchess.app",
             "appName": "Wizard Chess",
             "webDir": "dist"
           }
           EOF
+          fi
 
       - name: Build web app
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: npm run build -- --base=./
 
-      - name: Add and sync Android project
+      - name: Add or sync Android project
+        working-directory: ${{ steps.extract.outputs.project_dir }}
         run: |
-          npx cap add android
+          if [[ ! -d android ]]; then
+            npx cap add android
+          fi
           npx cap sync android
 
-      - name: Build debug APK
-        working-directory: android
+      - name: Configure three ABI APKs
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          gradle_file = Path("android/app/build.gradle")
+          if not gradle_file.is_file():
+              raise SystemExit(f"Expected Gradle file not found: {gradle_file}")
+
+          text = gradle_file.read_text()
+          if re.search(r"(?s)splits\s*\{.*?abi\s*\{", text):
+              raise SystemExit("ABI splits already configured; remove it before re-running.")
+
+          match = re.search(r"(?m)^\s*android\s*\{", text)
+          if not match:
+              raise SystemExit("Could not find android { } block in android/app/build.gradle")
+
+          abi_block = '''
+              splits {
+                  abi {
+                      enable true
+                      reset()
+                      include 'armeabi-v7a', 'arm64-v8a', 'x86_64'
+                      universalApk false
+                  }
+              }
+          '''
+
+          text = text[:match.end()] + abi_block + text[match.end():]
+          gradle_file.write_text(text)
+          PY
+
+      - name: Build debug APKs
+        working-directory: ${{ steps.extract.outputs.project_dir }}/android
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew clean assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Verify and collect exactly three APKs
+        working-directory: ${{ steps.extract.outputs.project_dir }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK_DIR="android/app/build/outputs/apk/debug"
+          OUTPUT_DIR="apk-output"
+          mkdir -p "$OUTPUT_DIR"
+
+          for ABI in armeabi-v7a arm64-v8a x86_64; do
+            APK="$(find "$APK_DIR" -type f -name "*${ABI}*debug.apk" -print -quit)"
+            if [[ -z "$APK" ]]; then
+              echo "APK for ABI $ABI was not generated"
+              find "$APK_DIR" -type f -name '*.apk' -print || true
+              exit 1
+            fi
+            cp "$APK" "$OUTPUT_DIR/wizard-chess-${ABI}-debug.apk"
+          done
+
+          COUNT="$(find "$OUTPUT_DIR" -maxdepth 1 -type f -name '*.apk' | wc -l)"
+          if [[ "$COUNT" -ne 3 ]]; then
+            echo "Expected exactly 3 APKs in output folder; found $COUNT"
+            exit 1
+          fi
+
+          ls -lh "$OUTPUT_DIR"
+
+      - name: Upload the three APKs
         uses: actions/upload-artifact@v4
         with:
-          name: wizard-chess-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: wizard-chess-three-apks
+          path: ${{ steps.extract.outputs.project_dir }}/apk-output/*.apk
           if-no-files-found: error
           retention-days: 14
