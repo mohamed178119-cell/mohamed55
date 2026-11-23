@@ -1,13 +1,13 @@
-name: Build APK
+name: Build EXE
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
-  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -15,37 +15,20 @@ jobs:
         with:
           node-version: 20
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+      - name: Prepare game files
+        shell: bash
+        working-directory: desktop
+        run: cp ../brain-puzzle-hard.html index.html
 
-      - name: Put the game in www/
-        run: |
-          mkdir -p www
-          cp brain-puzzle-hard.html www/index.html
-
-      - name: Install Capacitor
+      - name: Install dependencies
+        working-directory: desktop
         run: npm install
 
-      - name: Add and sync Android project
-        run: |
-          npx cap add android
-          npx cap sync android
-
-      - name: Generate app icons
-        run: |
-          npm install --no-save sharp
-          node -e "require('sharp')('resources/icon.svg').resize(1024,1024).png().toFile('resources/icon.png').then(()=>console.log('icon ok'))"
-          npx --yes @capacitor/assets generate --android
-
-      - name: Build debug APK
-        working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
+      - name: Build portable EXE
+        working-directory: desktop
+        run: npx electron-builder --win portable
 
       - uses: actions/upload-artifact@v4
         with:
-          name: brain-puzzle-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: brain-puzzle-exe
+          path: desktop/dist/*.exe
