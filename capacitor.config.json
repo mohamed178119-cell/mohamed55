@@ -1,8 +1,0 @@
-{
-  "appId": "com.brainpuzzle.app",
-  "appName": "Brain Puzzle",
-  "webDir": "www",
-  "server": {
-    "androidScheme": "https"
-  }
-}
